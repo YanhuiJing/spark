@@ -58,7 +58,11 @@ private[spark] class StandaloneSchedulerBackend(
   private val maxCores = conf.get(config.CORES_MAX)
   private val totalExpectedCores = maxCores.getOrElse(0)
 
+  // 区分driverEndPoint和StandaloneAppClient:
+  //          driverEndPoint主要用于与executor通信和调度
+  //          standAloneAppClient主要用于应用与master通信并申请资源
   override def start() {
+    // 通过父类创建DriverEndpoint通信
     super.start()
 
     // SPARK-21159. The scheduler backend should only try to connect to the launcher when in client
@@ -112,8 +116,11 @@ private[spark] class StandaloneSchedulerBackend(
       } else {
         None
       }
+    // 创建application应用信息
     val appDesc = ApplicationDescription(sc.appName, maxCores, sc.executorMemory, command,
       webUrl, sc.eventLogDir, sc.eventLogCodec, coresPerExecutor, initialExecutorLimit)
+
+    // 创建客户端通信点,用于向master申请资源
     client = new StandaloneAppClient(sc.env.rpcEnv, masters, appDesc, this, conf)
     client.start()
     launcherBackend.setState(SparkAppHandle.State.SUBMITTED)

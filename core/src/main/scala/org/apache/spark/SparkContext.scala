@@ -33,7 +33,7 @@ import scala.util.control.NonFatal
 import com.google.common.collect.MapMaker
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{ArrayWritable, BooleanWritable, BytesWritable, DoubleWritable, FloatWritable, IntWritable, LongWritable, NullWritable, Text, Writable}
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf, SequenceFileInputFormat, TextInputFormat}
 import org.apache.hadoop.mapreduce.{InputFormat => NewInputFormat, Job => NewHadoopJob}
@@ -348,7 +348,8 @@ class SparkContext(config: SparkConf) extends Logging {
   }
 
   /** Control our logLevel. This overrides any user-defined log settings.
-   * @param logLevel The desired log level as a string.
+    *
+    * @param logLevel The desired log level as a string.
    * Valid log levels include: ALL, DEBUG, ERROR, FATAL, INFO, OFF, TRACE, WARN
    */
   def setLogLevel(logLevel: String) {
@@ -492,6 +493,7 @@ class SparkContext(config: SparkConf) extends Logging {
       HeartbeatReceiver.ENDPOINT_NAME, new HeartbeatReceiver(this))
 
     // Create and start the scheduler
+    // 依据master地址和程序部署模式创建SparkContext任务启动入口
     val (sched, ts) = SparkContext.createTaskScheduler(this, master, deployMode)
     _schedulerBackend = sched
     _taskScheduler = ts
@@ -733,8 +735,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * `step` every element.
    *
    * @note if we need to cache this RDD, we should make sure each partition does not exceed limit.
-   *
-   * @param start the start value.
+    * @param start the start value.
    * @param end the end value.
    * @param step the incremental step
    * @param numSlices number of partitions to divide the collection into
@@ -803,7 +804,8 @@ class SparkContext(config: SparkConf) extends Logging {
   /** Distribute a local Scala collection to form an RDD.
    *
    * This method is identical to `parallelize`.
-   * @param seq Scala collection to distribute
+    *
+    * @param seq Scala collection to distribute
    * @param numSlices number of partitions to divide the collection into
    * @return RDD representing distributed collection
    */
@@ -817,7 +819,8 @@ class SparkContext(config: SparkConf) extends Logging {
    * Distribute a local Scala collection to form an RDD, with one or more
    * location preferences (hostnames of Spark nodes) for each object.
    * Create a new partition for each collection item.
-   * @param seq list of tuples of data and location preferences (hostnames of Spark nodes)
+    *
+    * @param seq list of tuples of data and location preferences (hostnames of Spark nodes)
    * @return RDD representing data partitioned according to location preferences
    */
   def makeRDD[T: ClassTag](seq: Seq[(T, Seq[String])]): RDD[T] = withScope {
@@ -872,8 +875,7 @@ class SparkContext(config: SparkConf) extends Logging {
    *       in a directory rather than `.../path/` or `.../path`
    * @note Partitioning is determined by data locality. This may result in too few partitions
    *       by default.
-   *
-   * @param path Directory to the input data files, the path can be comma separated paths as the
+    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param minPartitions A suggestion value of the minimal splitting number for input data.
    * @return RDD representing tuples of file path and the corresponding file content
@@ -924,8 +926,7 @@ class SparkContext(config: SparkConf) extends Logging {
    *       in a directory rather than `.../path/` or `.../path`
    * @note Partitioning is determined by data locality. This may result in too few partitions
    *       by default.
-   *
-   * @param path Directory to the input data files, the path can be comma separated paths as the
+    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param minPartitions A suggestion value of the minimal splitting number for input data.
    * @return RDD representing tuples of file path and corresponding file content
@@ -953,13 +954,11 @@ class SparkContext(config: SparkConf) extends Logging {
    *
    * @note We ensure that the byte array for each record in the resulting RDD
    * has the provided record length.
-   *
-   * @param path Directory to the input data files, the path can be comma separated paths as the
+    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param recordLength The length at which to split the records
    * @param conf Configuration for setting up the dataset.
-   *
-   * @return An RDD of data with values, represented as byte arrays
+    * @return An RDD of data with values, represented as byte arrays
    */
   def binaryRecords(
       path: String,
@@ -993,8 +992,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * @param valueClass `Class` of the value associated with the `inputFormatClass` parameter
    * @param minPartitions Minimum number of Hadoop Splits to generate.
    * @return RDD of tuples of key and corresponding value
-   *
-   * @note Because Hadoop's RecordReader class re-uses the same Writable object for each
+    * @note Because Hadoop's RecordReader class re-uses the same Writable object for each
    * record, directly caching the returned RDD or directly passing it to an aggregation or shuffle
    * operation will create many references to the same object.
    * If you plan to directly cache, sort, or aggregate Hadoop writable objects, you should first
@@ -1184,8 +1182,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * @param fClass storage format of the data to be read
    * @param kClass `Class` of the key associated with the `fClass` parameter
    * @param vClass `Class` of the value associated with the `fClass` parameter
-   *
-   * @note Because Hadoop's RecordReader class re-uses the same Writable object for each
+    * @note Because Hadoop's RecordReader class re-uses the same Writable object for each
    * record, directly caching the returned RDD or directly passing it to an aggregation or shuffle
    * operation will create many references to the same object.
    * If you plan to directly cache, sort, or aggregate Hadoop writable objects, you should first
@@ -1444,8 +1441,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * @param path can be either a local file, a file in HDFS (or other Hadoop-supported
    * filesystems), or an HTTP, HTTPS or FTP URI. To access the file in Spark jobs,
    * use `SparkFiles.get(fileName)` to find its download location.
-   *
-   * @note A path can be added only once. Subsequent additions of the same path are ignored.
+    * @note A path can be added only once. Subsequent additions of the same path are ignored.
    */
   def addFile(path: String): Unit = {
     addFile(path, false)
@@ -1466,8 +1462,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * use `SparkFiles.get(fileName)` to find its download location.
    * @param recursive if true, a directory can be given in `path`. Currently directories are
    * only supported for Hadoop-supported filesystems.
-   *
-   * @note A path can be added only once. Subsequent additions of the same path are ignored.
+    * @note A path can be added only once. Subsequent additions of the same path are ignored.
    */
   def addFile(path: String, recursive: Boolean): Unit = {
     val uri = new Path(path).toUri
@@ -1557,7 +1552,8 @@ class SparkContext(config: SparkConf) extends Logging {
   /**
    * Update the cluster manager on our scheduling needs. Three bits of information are included
    * to help it make decisions.
-   * @param numExecutors The total number of executors we'd like to have. The cluster manager
+    *
+    * @param numExecutors The total number of executors we'd like to have. The cluster manager
    *                     shouldn't kill any running executor to reach this number, but,
    *                     if all existing executors were to die, this is the number of executors
    *                     we'd want to be allocated.
@@ -1586,7 +1582,8 @@ class SparkContext(config: SparkConf) extends Logging {
   /**
    * :: DeveloperApi ::
    * Request an additional number of executors from the cluster manager.
-   * @return whether the request is received.
+    *
+    * @return whether the request is received.
    */
   @DeveloperApi
   def requestExecutors(numAdditionalExecutors: Int): Boolean = {
@@ -1609,8 +1606,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * its resource usage downwards. If the application wishes to replace the executors it kills
    * through this method with new ones, it should follow up explicitly with a call to
    * {{SparkContext#requestExecutors}}.
-   *
-   * @return whether the request is received.
+    * @return whether the request is received.
    */
   @DeveloperApi
   def killExecutors(executorIds: Seq[String]): Boolean = {
@@ -1634,8 +1630,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * its resource usage downwards. If the application wishes to replace the executor it kills
    * through this method with a new one, it should follow up explicitly with a call to
    * {{SparkContext#requestExecutors}}.
-   *
-   * @return whether the request is received.
+    * @return whether the request is received.
    */
   @DeveloperApi
   def killExecutor(executorId: String): Boolean = killExecutors(Seq(executorId))
@@ -1651,8 +1646,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * @note The replace is by no means guaranteed; another application on the same cluster
    * can steal the window of opportunity and acquire this application's resources in the
    * mean time.
-   *
-   * @return whether the request is received.
+    * @return whether the request is received.
    */
   private[spark] def killAndReplaceExecutor(executorId: String): Boolean = {
     schedulerBackend match {
@@ -1740,7 +1734,8 @@ class SparkContext(config: SparkConf) extends Logging {
 
   /**
    * Gets the locality information associated with the partition in a particular rdd
-   * @param rdd of interest
+    *
+    * @param rdd of interest
    * @param partition to be looked up for locality
    * @return list of preferred locations for the partition
    */
@@ -1771,8 +1766,7 @@ class SparkContext(config: SparkConf) extends Logging {
    *
    * @param path can be either a local file, a file in HDFS (or other Hadoop-supported filesystems),
    * an HTTP, HTTPS or FTP URI, or local:/path for a file on every worker node.
-   *
-   * @note A path can be added only once. Subsequent additions of the same path are ignored.
+    * @note A path can be added only once. Subsequent additions of the same path are ignored.
    */
   def addJar(path: String) {
     def addJarFile(file: File): String = {
@@ -2251,8 +2245,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * @param interruptThread whether to interrupt the thread running the task.
    * @param reason the reason for killing the task, which should be a short string. If a task
    *   is killed multiple times with different reasons, only one reason will be reported.
-   *
-   * @return Whether the task was successfully killed.
+    * @return Whether the task was successfully killed.
    */
   def killTaskAttempt(
       taskId: Long,
@@ -2281,7 +2274,8 @@ class SparkContext(config: SparkConf) extends Logging {
 
   /**
    * Set the directory under which RDDs are going to be checkpointed.
-   * @param directory path to the directory where checkpoint files will be stored
+    *
+    * @param directory path to the directory where checkpoint files will be stored
    * (must be HDFS path if running in cluster)
    */
   def setCheckpointDir(directory: String) {
@@ -2715,6 +2709,8 @@ object SparkContext extends Logging {
         scheduler.initialize(backend)
         (backend, scheduler)
 
+
+        // standAlone模式创建通信和任务调度对象
       case SPARK_REGEX(sparkUrl) =>
         checkCpusPerTask(clusterMode = true, None)
         val scheduler = new TaskSchedulerImpl(sc)
