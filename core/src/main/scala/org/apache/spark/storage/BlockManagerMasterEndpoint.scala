@@ -36,6 +36,7 @@ import org.apache.spark.util.{ThreadUtils, Utils}
 /**
  * BlockManagerMasterEndpoint is an [[ThreadSafeRpcEndpoint]] on the master node to track statuses
  * of all slaves' block managers.
+  * 负责维护每个Executor的BlockManager元数据
  */
 private[spark]
 class BlockManagerMasterEndpoint(
@@ -46,6 +47,7 @@ class BlockManagerMasterEndpoint(
   extends ThreadSafeRpcEndpoint with Logging {
 
   // Mapping from block manager id to the block manager's information.
+  // BlockManagerMaster维护着BlockManagerId与BlockManagerInfo的对应关系,BlockManagerInfo维护这BlockManager数据存储的元数据
   private val blockManagerInfo = new mutable.HashMap[BlockManagerId, BlockManagerInfo]
 
   // Mapping from executor ID to block manager ID.
@@ -72,6 +74,7 @@ class BlockManagerMasterEndpoint(
 
   logInfo("BlockManagerMasterEndpoint up")
 
+  // BlockManagerMaster接收响应机制:注册,修改BlockManagerInfo操作均在这里完成
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
     case RegisterBlockManager(blockManagerId, maxOnHeapMemSize, maxOffHeapMemSize, slaveEndpoint) =>
       context.reply(register(blockManagerId, maxOnHeapMemSize, maxOffHeapMemSize, slaveEndpoint))
@@ -352,6 +355,7 @@ class BlockManagerMasterEndpoint(
 
   /**
    * Returns the BlockManagerId with topology information populated, if available.
+    * BlockManagerInfo注册机制
    */
   private def register(
       idWithoutTopologyInfo: BlockManagerId,
@@ -389,6 +393,7 @@ class BlockManagerMasterEndpoint(
     id
   }
 
+  // BlockManagerInfo修改机制
   private def updateBlockInfo(
       blockManagerId: BlockManagerId,
       blockId: BlockId,
@@ -505,6 +510,7 @@ private[spark] class BlockManagerInfo(
   private var _remainingMem: Long = maxMem
 
   // Mapping from block id to its status.
+  // BlockManagerInfo维护着BlockId与BlockStatus的对应关系(数据块id与数据块状态信息)
   private val _blocks = new JHashMap[BlockId, BlockStatus]
 
   // Cached blocks held by this BlockManager. This does not include broadcast blocks.

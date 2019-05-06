@@ -424,6 +424,7 @@ private[spark] class BlockManager(
       ret
     }
 
+    // 依据executorid,host,port创建唯一标识的BlockManagerId
     val id =
       BlockManagerId(executorId, blockTransferService.hostName, blockTransferService.port, None)
 
@@ -799,6 +800,7 @@ private[spark] class BlockManager(
   }
 
   /**
+    * 从本地获取数据
    * Get block from the local block manager as serialized bytes.
    *
    * Must be called while holding a read lock on the block.
@@ -953,6 +955,7 @@ private[spark] class BlockManager(
 
   /**
    * Get block from remote block managers as serialized bytes.
+    * 远程获取数据
    */
   def getRemoteBytes(blockId: BlockId): Option[ChunkedByteBuffer] = {
     getRemoteManagedBuffer(blockId).map { data =>
@@ -968,6 +971,8 @@ private[spark] class BlockManager(
   }
 
   /**
+    *
+    * 根据BlockId获取数据存储位置(本地,远程)
    * Get a block from the block manager (either local or remote).
    *
    * This acquires a read lock on the block if the block was stored locally and does not acquire
