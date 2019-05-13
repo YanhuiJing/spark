@@ -45,6 +45,8 @@ import org.apache.spark.shuffle.ShuffleManager
 import org.apache.spark.storage._
 import org.apache.spark.util.{RpcUtils, Utils}
 
+// 再mater和worker每一个实例中均均在一个sparkEnv,sparkEnv是全局变量,master和worker中得所有线程均可以获取sparkEnv
+// sprkEnv中包含序列化,数据存储BlockManager,共享变量BroadCastManager,数据传输变量MapOutputTracker
 /**
  * :: DeveloperApi ::
  * Holds all the runtime environment objects for a running Spark instance (either master or worker),
@@ -332,11 +334,13 @@ object SparkEnv extends Logging {
       new NettyBlockTransferService(conf, securityManager, bindAddress, advertiseAddress,
         blockManagerPort, numUsableCores)
 
+    // 再sparkEnv中创建blockManagerMaster实体类
     val blockManagerMaster = new BlockManagerMaster(registerOrLookupEndpoint(
       BlockManagerMaster.DRIVER_ENDPOINT_NAME,
       new BlockManagerMasterEndpoint(rpcEnv, isLocal, conf, listenerBus)),
       conf, isDriver)
 
+    // blockManager初始化只有才有效,创建blockManager需要传入blockManagerMaster引用
     // NB: blockManager is not valid until initialize() is called later.
     val blockManager = new BlockManager(executorId, rpcEnv, blockManagerMaster,
       serializerManager, conf, memoryManager, mapOutputTracker, shuffleManager,

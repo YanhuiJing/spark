@@ -112,6 +112,7 @@ private[spark] class Executor(
   // create. The map key is a task id.
   private val taskReaperForTask: HashMap[Long, TaskReaper] = HashMap[Long, TaskReaper]()
 
+  // 通过blockManager初始化方法创建BlockManager实例
   if (!isLocal) {
     env.blockManager.initialize(conf.getAppId)
     env.metricsSystem.registerSource(executorSource)
