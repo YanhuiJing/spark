@@ -70,8 +70,10 @@ private[deploy] class ExecutorRunner(
   // make sense to remove this in the future.
   private var shutdownHook: AnyRef = null
 
+
   private[worker] def start() {
     workerThread = new Thread("ExecutorRunner for " + fullId) {
+      // fetchAndRunExecutor是启动Executor进程的主方法
       override def run() { fetchAndRunExecutor() }
     }
     workerThread.start()
@@ -150,6 +152,8 @@ private[deploy] class ExecutorRunner(
       val subsCommand = appDesc.command.copy(javaOpts = subsOpts)
       val builder = CommandUtils.buildProcessBuilder(subsCommand, new SecurityManager(conf),
         memory, sparkHome.getAbsolutePath, substituteVariables)
+      // ExecutorRunner通过进程命令创建CoarseGrainedExecutorBackend,
+      // CoarseGrainedExecutorBackend向Driver发送Executor信息
       val command = builder.command()
       val redactedCommand = Utils.redactCommandLineArgs(conf, command.asScala)
         .mkString("\"", "\" \"", "\"")
@@ -184,6 +188,7 @@ private[deploy] class ExecutorRunner(
       stderrAppender = FileAppender(process.getErrorStream, stderr, conf)
 
       state = ExecutorState.RUNNING
+      // executor启动后向worker发动Executor状态改变的消息
       worker.send(ExecutorStateChanged(appId, execId, state, None, None))
       // Wait for it to exit; executor may exit with code 0 (when driver instructs it to shutdown)
       // or with nonzero exit code

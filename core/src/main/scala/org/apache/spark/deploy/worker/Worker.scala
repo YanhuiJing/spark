@@ -492,6 +492,8 @@ private[deploy] class Worker(
       logInfo(s"Master with url $masterUrl requested this worker to reconnect.")
       registerWithMaster()
 
+     // worker接受master发送的LaunchExecutor消息,首先实例化ExecutorRunner对象,
+      // ExecutorRunner启动过程中会创建一个进程,该进程是Executor运行的容器
     case LaunchExecutor(masterUrl, appId, execId, appDesc, cores_, memory_) =>
       if (masterUrl != activeMasterUrl) {
         logWarning("Invalid Master (" + masterUrl + ") attempted to launch executor.")
@@ -547,6 +549,7 @@ private[deploy] class Worker(
             appLocalDirs,
             ExecutorState.LAUNCHING)
           executors(appId + "/" + execId) = manager
+          // 通过start方法启动Executor运行进程
           manager.start()
           coresUsed += cores_
           memoryUsed += memory_
@@ -735,6 +738,7 @@ private[deploy] class Worker(
     coresUsed -= driver.driverDesc.cores
   }
 
+  // 专门处理Executor状态改变消息
   private[worker] def handleExecutorStateChanged(executorStateChanged: ExecutorStateChanged):
     Unit = {
     sendToMaster(executorStateChanged)

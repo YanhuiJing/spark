@@ -28,6 +28,7 @@ private[spark] trait RpcEnvFactory {
   def create(config: RpcEnvConfig): RpcEnv
 }
 
+// RpcEndpoint定义了通信节点的启动机制=>按照onStart,receive,onStop的序列化顺序运行
 /**
  * An end point for the RPC that defines what functions to trigger given a message.
  *

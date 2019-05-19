@@ -219,6 +219,8 @@ private[deploy] class Master(
     self.send(RevokedLeadership)
   }
 
+  // master作为主节点,接收各种状态信息并做出回应
+  // 主要处理信息包括:worker注册,app注册,executor状态改变,driver状态改变,接受worker的心跳
   override def receive: PartialFunction[Any, Unit] = {
     case ElectedLeader =>
       val (storedApps, storedDrivers, storedWorkers) = persistenceEngine.readPersistedData(rpcEnv)
@@ -281,9 +283,14 @@ private[deploy] class Master(
         logInfo("Registered app " + description.name + " with ID " + app.id)
         persistenceEngine.addApplication(app)
         driver.send(RegisteredApplication(app.id, self))
+
+        // 向driver发送应用注册成功的消息之后,调用资源调度算法
+        // 集群会将等待队列中的应用取出进行资源部署
         schedule()
       }
 
+      // 如果Executor的状态发生变化,首先向所在worker发送状态改变消息,随后向master发送状态改变消息,
+      // master做出对应的改变
     case ExecutorStateChanged(appId, execId, state, message, exitStatus) =>
       val execOption = idToApp.get(appId).flatMap(app => app.executors.get(execId))
       execOption match {
@@ -693,6 +700,7 @@ private[deploy] class Master(
 
         // Now that we've decided how many cores to allocate on each worker, let's allocate them
         for (pos <- 0 until usableWorkers.length if assignedCores(pos) > 0) {
+          // 通过该方法向每个worker发消息启动Executor
           allocateWorkerResourceToExecutors(
             app, assignedCores(pos), app.desc.coresPerExecutor, usableWorkers(pos))
         }
@@ -754,6 +762,7 @@ private[deploy] class Master(
         curPos = (curPos + 1) % numWorkersAlive
       }
     }
+    // startExecutorOnWorkers是具体执行获取应用等待队列执行应用的操作
     startExecutorsOnWorkers()
   }
 

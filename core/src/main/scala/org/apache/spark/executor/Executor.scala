@@ -189,6 +189,7 @@ private[spark] class Executor(
    */
   private val HEARTBEAT_INTERVAL_MS = conf.get(EXECUTOR_HEARTBEAT_INTERVAL)
 
+  // Executor创建过程中,初始化定时心跳对象
   // Executor for the heartbeat task.
   private val heartbeater = new Heartbeater(
     env.memoryManager,
@@ -206,6 +207,7 @@ private[spark] class Executor(
    */
   private var heartbeatFailures = 0
 
+  // 启动定时心跳,Executor定时向Driver发送心跳
   heartbeater.start()
 
   private[executor] def numRunningTasks: Int = runningTasks.size()
@@ -284,6 +286,7 @@ private[spark] class Executor(
     ManagementFactory.getGarbageCollectorMXBeans.asScala.map(_.getCollectionTime).sum
   }
 
+  // task任务反序列初始化
   class TaskRunner(
       execBackend: ExecutorBackend,
       private val taskDescription: TaskDescription)

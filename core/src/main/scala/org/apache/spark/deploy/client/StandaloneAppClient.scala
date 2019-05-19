@@ -94,6 +94,7 @@ private[spark] class StandaloneAppClient(
 
     /**
      *  Register with all masters asynchronously and returns an array `Future`s for cancellation.
+      *  向master注册application信息,申请资源
      */
     private def tryRegisterAllMasters(): Array[JFuture[_]] = {
       for (masterAddress <- masterRpcAddresses) yield {
@@ -153,6 +154,7 @@ private[spark] class StandaloneAppClient(
     }
 
     override def receive: PartialFunction[Any, Unit] = {
+      // appCilent从master获取app注册成功的消息,将注册标识符设为true
       case RegisteredApplication(appId_, masterRef) =>
         // FIXME How to handle the following cases?
         // 1. A master receives multiple registrations and sends back multiple

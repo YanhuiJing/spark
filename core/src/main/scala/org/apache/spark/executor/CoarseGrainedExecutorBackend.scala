@@ -60,6 +60,7 @@ private[spark] class CoarseGrainedExecutorBackend(
     rpcEnv.asyncSetupEndpointRefByURI(driverUrl).flatMap { ref =>
       // This is a very fast action so we can use "ThreadUtils.sameThread"
       driver = Some(ref)
+      // 向app对应的driver发送executor注册信息
       ref.ask[Boolean](RegisterExecutor(executorId, self, hostname, cores, extractLogUrls,
         extractAttributes))
     }(ThreadUtils.sameThread).onComplete {
@@ -84,6 +85,7 @@ private[spark] class CoarseGrainedExecutorBackend(
   }
 
   override def receive: PartialFunction[Any, Unit] = {
+    // 获取driver端发送的RegisteredExecutor信息,创建Executor对象
     case RegisteredExecutor =>
       logInfo("Successfully registered with driver")
       try {
@@ -96,12 +98,15 @@ private[spark] class CoarseGrainedExecutorBackend(
     case RegisterExecutorFailed(message) =>
       exitExecutor(1, "Slave registration failed: " + message)
 
+      // 接受driver端的LaunchTask信息,反序列化task任务,执行task
     case LaunchTask(data) =>
       if (executor == null) {
         exitExecutor(1, "Received LaunchTask command but executor was null")
       } else {
         val taskDesc = TaskDescription.decode(data.value)
         logInfo("Got assigned task " + taskDesc.taskId)
+
+        // 将任务反序列化封装为TaskRunner对象,将TaskRunner对象放入Executor线程池中执行
         executor.launchTask(this, taskDesc)
       }
 
