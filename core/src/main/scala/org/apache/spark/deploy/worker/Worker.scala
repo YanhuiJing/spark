@@ -200,6 +200,7 @@ private[deploy] class Worker(
     }
   }
 
+  // 创建Worker进程,通过onStart方法向Master注册
   override def onStart() {
     assert(!registered)
     logInfo("Starting Spark worker %s:%d with %d cores, %s RAM".format(
@@ -248,6 +249,7 @@ private[deploy] class Worker(
         override def run(): Unit = {
           try {
             logInfo("Connecting to master " + masterAddress + "...")
+            // 通过master的ip地址,获取master的引用,通过mastrer的引用发送worker的注册信息
             val masterEndpoint = rpcEnv.setupEndpointRef(masterAddress, Master.ENDPOINT_NAME)
             sendRegisterMessageToMaster(masterEndpoint)
           } catch {
@@ -401,6 +403,8 @@ private[deploy] class Worker(
         }
         registered = true
         changeMaster(masterRef, masterWebUiUrl, masterAddress)
+
+        // worker在master中注册成功,worker定时向master发送心跳消息
         forwardMessageScheduler.scheduleAtFixedRate(
           () => Utils.tryLogNonFatalError { self.send(SendHeartbeat) },
           0, HEARTBEAT_MILLIS, TimeUnit.MILLISECONDS)
@@ -763,6 +767,8 @@ private[deploy] class Worker(
   }
 }
 
+// worker分布在集群各个节点上,在每个节点启动属于自己的worker,并向master注册,注册成功后组成一个集群
+// worker调用onStart方法向master注册
 private[deploy] object Worker extends Logging {
   val SYSTEM_NAME = "sparkWorker"
   val ENDPOINT_NAME = "Worker"

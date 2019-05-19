@@ -254,9 +254,12 @@ private[deploy] class Master(
       } else {
         val worker = new WorkerInfo(id, workerHost, workerPort, cores, memory,
           workerRef, workerWebUiUrl)
+        // 将worker资源添加到master信息中,并向worker发送registeredWorker信息
+        // 注册成功之后,进行相应的资源调度
         if (registerWorker(worker)) {
           persistenceEngine.addWorker(worker)
           workerRef.send(RegisteredWorker(self, masterWebUiUrl, masterAddress))
+          // 资源调度,这里是重点
           schedule()
         } else {
           val workerAddress = worker.endpoint.address
@@ -721,6 +724,7 @@ private[deploy] class Master(
     }
   }
 
+  // 每当有新的app加入到集群应用中来,系统都会重新进行资源调度
   /**
    * Schedule the currently available resources among waiting apps. This method will be called
    * every time a new app joins or resource availability changes.
@@ -1049,6 +1053,7 @@ private[deploy] class Master(
   }
 }
 
+// 通过main函数启动Master,创建Master端的通信引用,通过消息驱动程序的运行
 private[deploy] object Master extends Logging {
   val SYSTEM_NAME = "sparkMaster"
   val ENDPOINT_NAME = "Master"
