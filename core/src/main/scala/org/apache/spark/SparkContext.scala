@@ -191,10 +191,12 @@ class SparkContext(config: SparkConf) extends Logging {
   private var _eventLogDir: Option[URI] = None
   private var _eventLogCodec: Option[String] = None
   private var _listenerBus: LiveListenerBus = _
+  // 每一个Master或Worker实例中均包含一个SparkEnv实例,SparkEnv包含实例基础信息,是全局共享变量,每个线程都可以获取
   private var _env: SparkEnv = _
   private var _statusTracker: SparkStatusTracker = _
   private var _progressBar: Option[ConsoleProgressBar] = None
   private var _ui: Option[SparkUI] = None
+  // Hadoop集群配置类,可以通过该配置获取集群配置信息
   private var _hadoopConfiguration: Configuration = _
   private var _executorMemory: Int = _
   private var _schedulerBackend: SchedulerBackend = _
@@ -2004,6 +2006,7 @@ class SparkContext(config: SparkConf) extends Logging {
     if (conf.getBoolean("spark.logLineage", false)) {
       logInfo("RDD's recursive dependencies:\n" + rdd.toDebugString)
     }
+    // 最终调用DAGScheduler的runJob方法
     dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, resultHandler, localProperties.get)
     progressBar.foreach(_.finishAll())
     rdd.doCheckpoint()

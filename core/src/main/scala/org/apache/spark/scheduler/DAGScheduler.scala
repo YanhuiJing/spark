@@ -222,7 +222,9 @@ private[spark] class DAGScheduler(
   private val messageScheduler =
     ThreadUtils.newDaemonSingleThreadScheduledExecutor("dag-scheduler-message")
 
+  // DAGSchedulerEventProcessLoop 是DAGScheduler的核心事件处理类,不同的事件类型都是DAGSchedulerEventProcessLoop 转发到对应的操作
   private[spark] val eventProcessLoop = new DAGSchedulerEventProcessLoop(this)
+  // 将DAGScheduler注入到taskScheduler
   taskScheduler.setDAGScheduler(this)
 
   /**
@@ -549,6 +551,7 @@ private[spark] class DAGScheduler(
     true
   }
 
+  // stage划分机制原理
   private def getMissingParentStages(stage: Stage): List[Stage] = {
     val missing = new HashSet[Stage]
     val visited = new HashSet[RDD[_]]
@@ -659,6 +662,7 @@ private[spark] class DAGScheduler(
     }
   }
 
+  // 任务提交入口
   /**
    * Submit an action job to the scheduler.
    *
@@ -704,6 +708,8 @@ private[spark] class DAGScheduler(
     assert(partitions.nonEmpty)
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
     val waiter = new JobWaiter[U](this, jobId, partitions.size, resultHandler)
+
+    // 发送JobSubmitted信息,接收到信息后,触发handleJobSubmitted
     eventProcessLoop.post(JobSubmitted(
       jobId, rdd, func2, partitions.toArray, callSite, waiter,
       SerializationUtils.clone(properties)))
@@ -776,6 +782,7 @@ private[spark] class DAGScheduler(
     }
     val listener = new ApproximateActionListener(rdd, func, evaluator, timeout)
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
+
     eventProcessLoop.post(JobSubmitted(
       jobId, rdd, func2, rdd.partitions.indices.toArray, callSite, listener,
       SerializationUtils.clone(properties)))
@@ -1081,6 +1088,7 @@ private[spark] class DAGScheduler(
         logDebug("missing: " + missing)
         if (missing.isEmpty) {
           logInfo("Submitting " + stage + " (" + stage.rdd + "), which has no missing parents")
+          // stage划分结束,提交stage信息执行任务
           submitMissingTasks(stage, jobId.get)
         } else {
           for (parent <- missing) {
@@ -1117,6 +1125,8 @@ private[spark] class DAGScheduler(
         outputCommitCoordinator.stageStart(
           stage = s.id, maxPartitionId = s.rdd.partitions.length - 1)
     }
+
+    // 获取task执行位置
     val taskIdToLocations: Map[Int, Seq[TaskLocation]] = try {
       stage match {
         case s: ShuffleMapStage =>
@@ -1194,6 +1204,7 @@ private[spark] class DAGScheduler(
         return
     }
 
+    // 根据stage类型获取对应的任务列表
     val tasks: Seq[Task[_]] = try {
       val serializedTaskMetrics = closureSerializer.serialize(stage.latestInfo.taskMetrics).array()
       stage match {
@@ -1229,6 +1240,7 @@ private[spark] class DAGScheduler(
     if (tasks.nonEmpty) {
       logInfo(s"Submitting ${tasks.size} missing tasks from $stage (${stage.rdd}) (first 15 " +
         s"tasks are for partitions ${tasks.take(15).map(_.partitionId)})")
+      // taskScheduler提交taskSet启动任务执行
       taskScheduler.submitTasks(new TaskSet(
         tasks.toArray, stage.id, stage.latestInfo.attemptNumber, jobId, properties))
     } else {
@@ -2104,6 +2116,7 @@ private[spark] class DAGScheduler(
 
   eventProcessLoop.start()
 }
+
 
 private[scheduler] class DAGSchedulerEventProcessLoop(dagScheduler: DAGScheduler)
   extends EventLoop[DAGSchedulerEvent]("dag-scheduler-event-loop") with Logging {

@@ -96,6 +96,7 @@ private[spark] class TaskSchedulerImpl(
   // on this class.  Protected by `this`
   private val taskSetsByStageIdAndAttempt = new HashMap[Int, HashMap[Int, TaskSetManager]]
 
+  // TaskSchedulerImpl包含taskid与TaskSetManager,ExexutorId对应关系
   // Protected by `this`
   private[scheduler] val taskIdToTaskSetManager = new ConcurrentHashMap[Long, TaskSetManager]
   // Protected by `this`
@@ -107,6 +108,7 @@ private[spark] class TaskSchedulerImpl(
 
   // Incrementing task IDs
   val nextTaskId = new AtomicLong(0)
+
 
   // IDs of the tasks running on each executor
   private val executorIdToRunningTaskIds = new HashMap[String, HashSet[Long]]
@@ -203,6 +205,7 @@ private[spark] class TaskSchedulerImpl(
     waitBackendReady()
   }
 
+  // task的提交运行
   override def submitTasks(taskSet: TaskSet) {
     val tasks = taskSet.tasks
     logInfo("Adding task set " + taskSet.id + " with " + tasks.length + " tasks")

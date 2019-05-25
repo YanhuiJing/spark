@@ -267,6 +267,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
             new WorkerOffer(id, executorData.executorHost, executorData.freeCores,
               Some(executorData.executorAddress.hostPort))
         }.toIndexedSeq
+        // 重新整理资源
         scheduler.resourceOffers(workOffers)
       }
       if (taskDescs.nonEmpty) {

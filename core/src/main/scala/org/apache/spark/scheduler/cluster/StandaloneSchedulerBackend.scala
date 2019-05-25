@@ -58,7 +58,8 @@ private[spark] class StandaloneSchedulerBackend(
   private val maxCores = conf.get(config.CORES_MAX)
   private val totalExpectedCores = maxCores.getOrElse(0)
 
-  // 区分driverEndPoint和StandaloneAppClient:
+  // 该通信端口的启动是由TaskScheduler的start方法调用启动
+  //          区分driverEndPoint和StandaloneAppClient:
   //          driverEndPoint主要用于与executor通信和调度
   //          standAloneAppClient主要用于应用与master通信并申请资源
   override def start() {
