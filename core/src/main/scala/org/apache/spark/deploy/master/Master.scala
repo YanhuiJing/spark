@@ -261,7 +261,7 @@ private[deploy] class Master(
         if (registerWorker(worker)) {
           persistenceEngine.addWorker(worker)
           workerRef.send(RegisteredWorker(self, masterWebUiUrl, masterAddress))
-          // 资源调度,这里是重点
+          // 资源调度,这里是重点,部署应用对应的DriverEndpoint和启动Executor
           schedule()
         } else {
           val workerAddress = worker.endpoint.address
@@ -620,22 +620,37 @@ private[deploy] class Master(
       app: ApplicationInfo,
       usableWorkers: Array[WorkerInfo],
       spreadOutApps: Boolean): Array[Int] = {
+    // 每个Executor对应的cpu核数
     val coresPerExecutor = app.desc.coresPerExecutor
+    // Executor对应的最少cpu核数,至少是1
     val minCoresPerExecutor = coresPerExecutor.getOrElse(1)
+
+    // 每个Executor对应的cpu核数不为空
     val oneExecutorPerWorker = coresPerExecutor.isEmpty
     val memoryPerExecutor = app.desc.memoryPerExecutorMB
     val numUsable = usableWorkers.length
+
+    // worker列表,每个worker对应的允许cpu核数和允许的executor数
     val assignedCores = new Array[Int](numUsable) // Number of cores to give to each worker
     val assignedExecutors = new Array[Int](numUsable) // Number of new executors on each worker
+    // app对应的cpu核数和worker可用核数最小值
     var coresToAssign = math.min(app.coresLeft, usableWorkers.map(_.coresFree).sum)
 
-    /** Return whether the specified worker can launch an executor for this app. */
+    // 判断worker是否能够部署Executor
+    /** Return whether the specified worker can launch an executor for this app.
+      * */
     def canLaunchExecutor(pos: Int): Boolean = {
+
+      // 可用cpu核数需要大于executor最小cpu核数
       val keepScheduling = coresToAssign >= minCoresPerExecutor
+
+      // worker可用内存需要减去worker已用内存需要大于executor对应最小内存
       val enoughCores = usableWorkers(pos).coresFree - assignedCores(pos) >= minCoresPerExecutor
 
       // If we allow multiple executors per worker, then we can always launch new executors.
       // Otherwise, if there is already an executor on this worker, just give it more cores.
+      // launchingNewExecutor判断worker是否第一次部署Executor,为了worker的资源分布更均匀,
+      // 系统每次都会遍历worker重新分配Executor
       val launchingNewExecutor = !oneExecutorPerWorker || assignedExecutors(pos) == 0
       if (launchingNewExecutor) {
         val assignedMemory = assignedExecutors(pos) * memoryPerExecutor
@@ -652,6 +667,9 @@ private[deploy] class Master(
     // Keep launching executors until no more workers can accommodate any
     // more executors, or if we have reached this application's limits
     var freeWorkers = (0 until numUsable).filter(canLaunchExecutor)
+
+    // 双重循环:第一重循环遍历所有剩余的freeWorker,第二重循针对每个worker遍历循环
+    // 如果spreadOutApps为true,代表资源均匀分配,worker只会遍历一遍否则一致遍历下去
     while (freeWorkers.nonEmpty) {
       freeWorkers.foreach { pos =>
         var keepScheduling = true
@@ -676,6 +694,7 @@ private[deploy] class Master(
           }
         }
       }
+      // freeWorkers第一遍遍历完成之后,通过canLaunchExecutor遍历获取剩余的可用worker资源,继续遍历
       freeWorkers = freeWorkers.filter(canLaunchExecutor)
     }
     assignedCores
@@ -696,11 +715,13 @@ private[deploy] class Master(
           .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
             worker.coresFree >= coresPerExecutor)
           .sortBy(_.coresFree).reverse
+
+        // assignedCores是系统通过匹配资源,每个worker允许启动的Executor个数
         val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
 
         // Now that we've decided how many cores to allocate on each worker, let's allocate them
         for (pos <- 0 until usableWorkers.length if assignedCores(pos) > 0) {
-          // 通过该方法向每个worker发消息启动Executor
+          // 通过该方法向每个worker发消息启动Executor,信息主要包括app信息,worker可以启动的executor个数
           allocateWorkerResourceToExecutors(
             app, assignedCores(pos), app.desc.coresPerExecutor, usableWorkers(pos))
         }
@@ -754,6 +775,7 @@ private[deploy] class Master(
       while (numWorkersVisited < numWorkersAlive && !launched) {
         val worker = shuffledAliveWorkers(curPos)
         numWorkersVisited += 1
+        // 根据driver端内存和cpu核数获取对应的worker,部署driver
         if (worker.memoryFree >= driver.desc.mem && worker.coresFree >= driver.desc.cores) {
           launchDriver(worker, driver)
           waitingDrivers -= driver
@@ -1030,6 +1052,7 @@ private[deploy] class Master(
     new DriverInfo(now, newDriverId(date), desc, date)
   }
 
+  // workerInfo中包含worker端的引用
   private def launchDriver(worker: WorkerInfo, driver: DriverInfo) {
     logInfo("Launching driver " + driver.id + " on worker " + worker.id)
     worker.addDriver(driver)

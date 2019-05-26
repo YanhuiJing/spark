@@ -436,8 +436,11 @@ private[spark] class TaskSchedulerImpl(
         var launchedAnyTask = false
         // Record all the executor IDs assigned barrier tasks on.
         val addressesWithDescs = ArrayBuffer[(String, TaskDescription)]()
+
+        // 遍历程序本地化级别
         for (currentMaxLocality <- taskSet.myLocalityLevels) {
           var launchedTaskAtCurrentMaxLocality = false
+          // 如果不了,跳出循环,进入下一种本地化级别，直到taskSet在某些本地化级别在executor上全部启动
           do {
             launchedTaskAtCurrentMaxLocality = resourceOfferSingleTaskSet(taskSet,
               currentMaxLocality, shuffledOffers, availableCpus, tasks, addressesWithDescs)
