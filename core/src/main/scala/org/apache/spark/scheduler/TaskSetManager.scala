@@ -33,6 +33,7 @@ import org.apache.spark.scheduler.SchedulingMode._
 import org.apache.spark.util.{AccumulatorV2, Clock, LongAccumulator, SystemClock, Utils}
 import org.apache.spark.util.collection.MedianHeap
 
+//每个TaskSet都是创建一个TaskSetManager对象对该TaskSet对应的task进行管理,task的部署,task的运行状态
 /**
  * Schedules the tasks within a single TaskSet in the TaskSchedulerImpl. This class keeps track of
  * each task, retries tasks if they fail (up to a limited number of times), and
@@ -83,6 +84,7 @@ private[spark] class TaskSetManager(
   // For each task, tracks whether a copy of the task has succeeded. A task will also be
   // marked as "succeeded" if it failed with a fetch failure, in which case it should not
   // be re-run because the missing map data needs to be regenerated first.
+  // 标记任务执行状态
   val successful = new Array[Boolean](numTasks)
   private val numFailures = new Array[Int](numTasks)
 
@@ -129,6 +131,7 @@ private[spark] class TaskSetManager(
   // same time for a barrier stage.
   private[scheduler] def isBarrier = taskSet.tasks.nonEmpty && taskSet.tasks(0).isBarrier
 
+  // 分别记录不同本地级别的taskId对应关系
   // Set of pending tasks for each executor. These collections are actually
   // treated as stacks, in which new tasks are added to the end of the
   // ArrayBuffer and removed from the end. This makes it faster to detect
@@ -480,6 +483,8 @@ private[spark] class TaskSetManager(
       var allowedLocality = maxLocality
 
       if (maxLocality != TaskLocality.NO_PREF) {
+
+        // task本地化执行级别判断核心逻辑
         allowedLocality = getAllowedLocalityLevel(curTime)
         if (allowedLocality > maxLocality) {
           // We're not allowed to search for farther-away tasks
@@ -562,6 +567,7 @@ private[spark] class TaskSetManager(
     }
   }
 
+  // 基于等待时间获取task本地部署级别
   /**
    * Get the level we can launch tasks according to delay scheduling, based on current wait time.
    */

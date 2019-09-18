@@ -27,6 +27,7 @@ import org.apache.spark.memory.{MemoryMode, TaskMemoryManager}
 import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.util._
 
+// Task是抽象类,spark中的任务类型主要为ShuffleMapTask和ResultTask
 /**
  * A unit of execution. We have two kinds of Task's in Spark:
  *

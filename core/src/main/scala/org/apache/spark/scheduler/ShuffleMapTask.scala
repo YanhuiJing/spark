@@ -74,6 +74,7 @@ private[spark] class ShuffleMapTask(
     if (locs == null) Nil else locs.toSet.toSeq
   }
 
+  // ShuffleMapTask任务执行完成返回MapStatus
   override def runTask(context: TaskContext): MapStatus = {
     // Deserialize the RDD using the broadcast variable.
     val threadMXBean = ManagementFactory.getThreadMXBean
@@ -91,6 +92,7 @@ private[spark] class ShuffleMapTask(
 
     val rdd = rddAndDep._1
     val dep = rddAndDep._2
+    // shuffleMap端输出翻译mapStatus,目前主要有三种类型Writer:ByPassMergeSortShuffleWriter,UnsafeShufflWriter,SortShuffleWriter
     dep.shuffleWriterProcessor.write(rdd, dep, partitionId, context, partition)
   }
 
