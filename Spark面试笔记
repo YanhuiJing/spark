@@ -58,6 +58,111 @@
     yarn申请资源,并监督作业的运行状况.当用户提交作业之后,就可以换掉client,作业会继续在yarn上运行
     而yarn-client模式下，Application Master仅仅向yarn请求executor，Client会和请求的container通信
     来调度他们工作,client不能离开
+6,spark为什么快,sparkSql一定比Hive快吗
+    1,消除了冗余的HDFS读写,Hadoop每次shuffle操作后必须写到磁盘,而spark在shufle后不一定落盘,可以
+    cache到内存中,以便迭代时使用.如果操作复杂有很多shuffle操作,那么Hadoop的读写IO时间会大大增加
+    2,消除了冗余的MapReduce阶段,Hadoop的shuffle操作一定连着完整的MapReduce操作,冗余繁琐。而Spark
+    基于RDD提供了丰富的算子操作,reduce产生的shuffle数据,可以缓存到内存中
+    3,JVM的优化,Hadoop的每次操作,启动一个Task便会启动过一次JVM,基于进程的操作。而Spark每次MapReduce
+    操作是基于线程的,只在启动Executor时启动一次JVM，内存的task操作是在线程复用。
+
+    spark快不是绝对的,但是绝大多数spark都比hadoop计算要快,这主要得益于对mapreduce操作的优化以及对jvm使用的优化
+
+7,RDD,DAG,Stage怎么理解?
+
+    DAG Spark中使用DAG对RDD关系进行建模,描述RDD间的依赖关系
+
+    RDD 弹性分布式数据集,一个RDD代表一个可以被分区的只读数据集.Rdd内部可以有许多分区(partition)
+        每个分区拥有大量的记录(record)
+        Rdd五个特征:1,dependencies:建立RDD的依赖关系(宽依赖,窄依赖)
+                    2,partition:一个RDD会有若干个分区,分区的大小决定对这个RDD的计算粒度,每个RDD
+                          的分区计算都在一个单独的任务中进行
+                    3,preferedlications:按照移动数据不如移动计算原则,spark进行任务调度的时候,优先将
+                          任务分配到数据块存储的位置
+                    4,compute:Spark中的计算都是以分区为基本单位,compute函数只是对迭代器进行符合,并不保存
+                          单次计算的结果
+                    5,partitioner:只存在于(K,V)类型的RDD中,非(K,V)类型partitoner默认是None
+
+8,RDD如何通过记录更新的方式容错
+    1,数据检查点(checkpoint)
+    2,记录更新,"血统"容错
+
+9,宽依赖,窄依赖如何理解?
+    窄依赖是一对一关系(Narrow Dependencies)
+    宽依赖是多对一关系会发生shuffle操作 (Shuffle Dependecies)
+
+10,Job和Task怎么理解
+    Job Spark的action算子触发Job,表示一个执行任务
+    Task 一个Stage内,最终的RDD有多少partition就会产生多少task
+
+11,Spark血统的概念
+    lineage表示的是rdd之间的依赖关系,当rdd的部分分区数据丢失时,它可以通过lineage获取足够的信息重新计算
+    并恢复丢失的数据分区
+
+12,Spark作业的提交流程是怎么样的
+    1,spark-submit提交代码,执行new SparkContext(),在SparkContext里构造DAGScheduler和TaskScheduler
+    2，TaskSheduler通过后台的一个进程连接Master,向Master注册Application
+    3，Master接收到Application请求后,会使用相应的资源调度算法,在Worker上为这个Application启动多个Executor
+    4，Executor启动后会反向注册给TaskScheduler,所有Executor都注册到Driver后,SparkContext结束初始化,接下来
+       往下执行具体的代码逻辑
+    5,每执行到一个Action,就会创建一个Job。Job会提交给DAGScheduler
+    6,DAGScheduler会将Job划分为多个stage,然后每个stage创建一个TaskSet
+    7,TaskScheduler会把每一个TaskSet里的Task提交到Executor上执行
+    8,Executor上有线程池,每接收到一个Task,就用TaskRunner封装,然后从线程池里取出一个线程去执行这个Task
+    （TaskRunner将我们编写的代码拷贝,反序列化,执行Task，每个Task执行RDD里的一个partition）
+
+13,说说spark支持的3种集群管理器
+    standalone模式:资源管理器是Master节点,调度策略相对单一,只支持先进先出,一个任务全部执行完之后才能释放所有资源
+    yarn模式: 支持动态资源管理
+    mesos:可以对集群中的资源做弹性管理(具体没有使用过)
+
+14,说说Worker和Executor的异同
+    Worker是指每个节点上启动的一个进程,负责本地节点,JPS可以看到Worker进程的运行,Executor是每个Spark程序在每个节点上启动的
+    一个进程,专属于一个spark程序,与spark程序有相同的生命周期,负责spark在节点上启动task,管理内存和磁盘.如果一个节点上有多个
+    spark程序,那么相应就会启动多个执行器
+
+15,说说Spark的高可用和容错
+    Spark应用程序执行过程中,一般存在以下失败执行情况:
+        Driver进程宕机:driver运行机器宕机,driver程序运行过程中异常导致进程宕机
+        Executor进程宕机:比如executor进程所在机器的worker宕机,Executor和Driver之间通信超时
+        Task执行失败:Task任务执行线程执行过程中产生异常导致Task执行失败
+
+    Driver进程宕机解决方案:
+        1,运维监控机器是否存活,如果机器宕机,运维人员重启服务器及spark应用
+        2,运维通过spark job的history服务,监控应用是否执行成功,如果执行失败,通知开发人员重启服务
+        3,sparkStreaming中,重启spark应用后,可通过checkpointDir进行job数据恢复
+    Executor进程宕机:
+        选择一个worker节点重启Executor进程,Driver重新分配任务
+    Task执行失败解决方案:
+        1,spark程序会进行task重试机制,如果某个task失败重试次数超过3次(spark.task.maxFailures),如果超过
+        4次,当前job执行失败
+        2，如果RDD的lineage生命线特别长,此时某些task执行失败的恢复成本就会比较高,那么可以采用检查点(checkpoint)
+        或者缓存(cache)的方式将数据冗余的保存下来,当检查点或缓存点之后的task出现异常的时候,可以直接从检查
+        点重新构建lineage,可以减少执行开销
+
+16,说说Spark如何实现序列化组件
+    Java序列化
+    在默认情况下，Spark采用Java的ObjectOutputStream序列化一个对象。该方式适用于所有实现了java.io.Serializable的类。通过继承java.io.Externalizable，你能进一步控制序列化的性能。Java序列化非常灵活，但是速度较慢，在某些情况下序列化的结果也比较大。
+    Kryo序列化
+    Spark也能使用Kryo（版本2）序列化对象。Kryo不但速度极快，而且产生的结果更为紧凑（通常能提高10倍）。Kryo的缺点是不支持所有类型，为了更好的性能，你需要提前注册程序中所使用的类（class）。
+    Java的序列化比较简单，就和前面的一样，下面主要介绍Kryo序列化的使用。
+    Kryo序列化怎么用？
+    可以在创建SparkContext之前，通过调用System.setProperty("spark.serializer", "spark.KryoSerializer")，将序列化方式切换成Kryo。
+    但是Kryo需要用户进行注册，这也是为什么Kryo不能成为Spark序列化默认方式的唯一原因，但是建议对于任何“网络密集型”（network-intensive)的应用，都采用这种方式进行序列化方式。
+    Kryo文档描述了很多便于注册的高级选项，例如添加用户自定义的序列化代码。
+    如果对象非常大，你还需要增加属性spark.kryoserializer.buffer.mb的值。该属性的默认值是32，但是该属性需要足够大以便能够容纳需要序列化的最大对象。
+    最后，如果你不注册你的类，Kryo仍然可以工作，但是需要为了每一个对象保存其对应的全类名（full class name),这是非常浪费的。
+
+17,SparkStreaming小文件问题
+    使用 Spark Streaming 时，如果实时计算结果要写入到 HDFS，那么不可避免的会遇到一个问题，那就是在默认情况下会产生非常多的小文件，这是由 Spark Streaming 的微批处理模式和 DStream(RDD) 的分布式(partition)特性导致的，Spark Streaming 为每个 Partition 启动一个独立的线程（一个 task/partition 一个线程）来处理数据，一旦文件输出到 HDFS，那么这个文件流就关闭了，再来一个 batch 的 parttition 任务，就再使用一个新的文件流，那么假设，一个 batch 为10s，每个输出的 DStream 有32个 partition，那么一个小时产生的文件数将会达到(3600/10)*32=11520个之多。众多小文件带来的结果是有大量的文件元信息，比如文件的 location、文件大小、block number 等需要 NameNode 来维护，NameNode 会因此鸭梨山大。不管是什么格式的文件，parquet、text、JSON 或者 Avro，都会遇到这种小文件问题，这里讨论几种处理 Spark Streaming 小文件的典型方法。
+    增加 batch 大小: 这种方法很容易理解，batch 越大，从外部接收的 event 就越多，内存积累的数据也就越多，那么输出的文件数也就会变少，比如上边的时间从10s增加为100s，那么一个小时的文件数量就会减少到1152个。但别高兴太早，实时业务能等那么久吗，本来人家10s看到结果更新一次，现在要等快两分钟，是人都会骂娘。所以这种方法适用的场景是消息实时到达，但不想挤压在一起处理，因为挤压在一起处理的话，批处理任务在干等，这时就可以采用这种方法。
+
+    Coalesce大法好: 文章开头讲了，小文件的基数是 batch_number * partition_number，而第一种方法是减少 batch_number，那么这种方法就是减少 partition_number 了，这个 api 不细说，就是减少初始的分区个数。看过 spark 源码的童鞋都知道，对于窄依赖，一个子 RDD 的 partition 规则继承父 RDD，对于宽依赖(就是那些个叉叉叉ByKey操作)，如果没有特殊指定分区个数，也继承自父 rdd。那么初始的 SourceDstream 是几个 partiion，最终的输出就是几个 partition。所以 Coalesce 大法的好处就是，可以在最终要输出的时候，来减少一把 partition 个数。但是这个方法的缺点也很明显，本来是32个线程在写256M数据，现在可能变成了4个线程在写256M数据，而没有写完成这256M数据，这个 batch 是不算结束的。那么一个 batch 的处理时延必定增长，batch 挤压会逐渐增大。
+
+    Spark Streaming 外部来处理: 我们既然把数据输出到 hdfs，那么说明肯定是要用 Hive 或者 Spark Sql 这样的“sql on hadoop”系统类进一步进行数据分析，而这些表一般都是按照半小时或者一小时、一天，这样来分区的(注意不要和 Spark Streaming 的分区混淆，这里的分区，是用来做分区裁剪优化的)，那么我们可以考虑在 Spark Streaming 外再启动定时的批处理任务来合并 Spark Streaming 产生的小文件。这种方法不是很直接，但是却比较有用，“性价比”较高，唯一要注意的是，批处理的合并任务在时间切割上要把握好，搞不好就可能会去合并一个还在写入的 Spark Streaming 小文件。
+
+    自己调用 foreach 去 append: Spark Streaming 提供的 foreach 这个 outout 类 api （一种 Action 操作），可以让我们自定义输出计算结果的方法。那么我们其实也可以利用这个特性，那就是每个 batch 在要写文件时，并不是去生成一个新的文件流，而是把之前的文件打开。考虑这种方法的可行性，首先，HDFS 上的文件不支持修改，但是很多都支持追加，那么每个 batch 的每个 partition 就对应一个输出文件，每次都去追加这个 partition 对应的输出文件，这样也可以实现减少文件数量的目的。这种方法要注意的就是不能无限制的追加，当判断一个文件已经达到某一个阈值时，就要产生一个新的文件进行追加了。所以大概就是一直32个文件。
+
 
 
 
