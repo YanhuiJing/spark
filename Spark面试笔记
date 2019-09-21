@@ -163,6 +163,82 @@
 
     自己调用 foreach 去 append: Spark Streaming 提供的 foreach 这个 outout 类 api （一种 Action 操作），可以让我们自定义输出计算结果的方法。那么我们其实也可以利用这个特性，那就是每个 batch 在要写文件时，并不是去生成一个新的文件流，而是把之前的文件打开。考虑这种方法的可行性，首先，HDFS 上的文件不支持修改，但是很多都支持追加，那么每个 batch 的每个 partition 就对应一个输出文件，每次都去追加这个 partition 对应的输出文件，这样也可以实现减少文件数量的目的。这种方法要注意的就是不能无限制的追加，当判断一个文件已经达到某一个阈值时，就要产生一个新的文件进行追加了。所以大概就是一直32个文件。
 
+18,Spark经常说的repartition是个什么玩意
+    增加或减少RDD的并行度.shuffle重新分配数据,如果减少分区数可以考虑使用coalesce,这样可以避免执行shuffle
+    减少分区数目的:1,避免小文件;2,减少task个数;3,但是会增加task处理的数据量
+
+19,Spark Streaming Duration微批处理
+    sparkStreaming批处理的时间间隔,每个Batch Duration时间提交一次job,如果job的处理时间超过batch duration,会使得
+    job无法按时提交,随着时间推移,越来越多的作业被拖延,最后导致整个sparkStreaming作业被阻塞,无法做到实时处理数据
+
+20,如何区分Application和Driver
+    Application是指用户编写的spark应用程序,包含驱动程序Driver和分布在集群中多个节点上运行的Executor代码,在执行过程中
+    由一个或多个作业组成
+
+    Driver是Spark中的Driver负责准备Spark应用程序的运行环境,负责与Master通信,进行资源申请,任务的分配和监控。当
+    Executor部分运行完毕后,Driver负责把sc关闭。
+
+21,介绍下Spark的通信方式
+    Spark启动过程主要是Master和Worker之间的通信,首先由Worker节点向Master发送注册消息,然后Master处理完毕后,返回
+    注册成功或失败的消息,如果注册成功,Worker会定时发送心跳信息给Master
+
+22,Spark的存储体系
+   Spark的存储体系是由各个Driver和Executor实例中的BlockManager所组成,但是从一个整体来看,把各个节点的BlockManager
+   看成存储体系的一部分,那存储体系就有更多衍生的内容,比如块传输服务,map任务输出跟踪器,shuffle管理器等
+
+23,说说Spark的特点,相对于MR来说
+   1,减少磁盘IO，MR会把map端将中间输出和结果存储在磁盘中,reduce端又需要从磁盘读写中间结果,势必造成磁盘IO成为瓶颈
+   。Spark允许将map端的中间结果输出和结果存储在内存中,reduce端在拉取中间结果的时候避免了大量的磁盘IO
+   2,增加并行度,由于把中间结果写到磁盘与从磁盘读取中间结果属于不同的缓解,Hadoop将他们简单的串行执行衔接起来,Spark则
+   把不同的环节抽象成为Stage，允许多个Stage既可以串行又可以并行
+   3,避免重复计算,当Stage中某个分区的task执行失败后,会重新对此stage进行调度,但在重新调度的时候会过滤已经执行成功的
+   分区任务,所以不会造成重复计算和资源浪费
+   4,可选的shuffle排序,MR在shuffle之前有着固定的排序操作,而Spark则可以根据不同的场景选择在map端排序还是reduce排序
+   5,灵活的内存管理策略,Spark将内存分为堆上的存储内存,堆外的存储内存,堆上的执行内存，堆外的执行内存4个部分
+
+24,说说spark Narroe Depdency的分类
+    OneToOneDependency
+    RangeDependency
+
+25,Task和Stage的分类
+    Task指具体的执行任务,一个Job在每个Stage内都会按照RDD的partition数量,创建多个task，task分为shuffleMapTask和
+    ResultTask两种。ShuffleMapTask和ResultTask类似于Hadoop中的Map任务和Reduce任务
+
+26,总述Spark架构
+    从集群部署的角度看,Spark集群由ClusterManager,Worker，Ececutor，Driver，Application组成
+    ClusterManager:主要负责集群资源的分配和管理,CluserManager在YARN部署模式下为RM，Standalone模式下为Master
+        CM分配的资源属于一级分配,它将各个Worker上的内存,CPU等资源分配给Application,但是不负责对Executor的资源分类。
+        Standalone模式下Master会直接给Application分配内存,cpu和Executor等资源
+    Worker:Spark的工作节点在yarn部署模式下实际由NodeManager替代,Worker节点主要负责把自己的内存和CPU等资源通过注册
+        机制告知CM，创建Executor,把资源和任务进一步分配给Executor,同步资源信息,Executor状态信息给Application等等
+        Stabdalone模式下,Master将Worker上的内存,cpu以及Executor等资源分配给Application后,将命令Worker启动
+        CoarseGrainExecutorBackend进程(该进程会创建Executor实例)
+    Executor:执行计算任务的一线组件,主要负责任务的执行以及与Worker Driver信息同步.
+        Driver:Application的驱动程序,Application通过Driver与CM以及Executor进行通信.Driver可以运行在Application中,
+        也可以由Application提交给CM并由CM安排Worker运行
+    Application：Application通过Spark API进行RDD的转换和DAG的创建,并通过Driver将Application注册到CM，CM将会根据
+        Application的资源需求,通过一级资源分配将Executor，内存,CPU等资源分配给Application.Driver会通过二级资源分配
+        将Executor等资源分配给每一个任务,Application最后通过Driver告诉Executor运行任务
+
+27,谈谈Spark Streaming Driver端重启会发生什么?
+    1,恢复计算:使用检查点信息重启Driver端,重构上下文并重启接收器
+    2,恢复元数据块:为了保证能够继续下去所必备的全部元数据块都被恢复
+    3,未完成作业的重新形成:由于失败而没有处理完成的批处理,将使用恢复的元数据再次产生RDD和对应的作业
+    4,读取保存在日志中的块数据:在这些作业执行的时候,块数据直接从预写日志中读出,这将恢复在日志中可靠
+        地保存所有必要的数据
+    5,重发尚未确认的数据:失败时没有保存到日志中的缓存数据将由数据源再次发送
+
+28,StreamingContext启动时序图
+    1,初始化StreamingContext中的DSreamGraph和JobScheduler，进而启动JobScheduler的ReceiveTracker和JobGenerator
+    2,初始化阶段会进行成员变量的初始化,重要的包括DStreamGraph(包含DStream之间相互依赖的有向无环图)，
+    JobScheduler(定时查看DStreamGraph,然后根据流入的数据生成作业),StreamTab(在SparkStreaming运行的时候对流数据处理的监控)
+    3,然后就是创建InputStream,接着就是对InputStream进行flatMap,map等操作，类似于RDD的转换操作
+    4,启动JobScheduler,实例化并启动ReceiverTracker和JobGenerator
+
+
+
+
+
 
 
 
